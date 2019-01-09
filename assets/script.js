@@ -2,8 +2,8 @@
   $.fn.imageBlock = function(file) {
     const self = this;
     const $elem = $(this);
-    const $progress = $elem.find('.image-block__progress');
-    const $btnCancel = $elem.find('.image-block__cancel');
+    const $progress = $('<div class="image-block__progress"></div>');
+    const $btnCancel = $('<div class="btn btn-danger image-block__cancel">Cancel</div>');
 
     // attributes
     self.progress = 0;
@@ -61,6 +61,9 @@
     $btnCancel.click(self.cancelUpload);
 
     // constructor
+    $elem.append($progress);
+    $elem.append($btnCancel);
+    self.file = file;
     self.upload(file);
   }
 
@@ -77,12 +80,7 @@
 
     self.appendFile = file => {
       // const newImageBlock = document.createElement('div');
-      const $newImageBlock = $(`
-        <div class='image-block'>
-          <div class='image-block__progress'></div>
-          <div class='btn btn-danger image-block__cancel'>Cancel</div>
-        </div>
-      `);
+      const $newImageBlock = $(`<div class='image-block'></div>`);
 
       $imageList.append($newImageBlock);
       $newImageBlock.imageBlock(file);
