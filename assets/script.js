@@ -1,21 +1,38 @@
 (function($) {
-  $.fn.imageManagement = function() {
+  $.fn.imageBlock = function(file) {
     const self = this;
     const $elem = $(this);
-    const $addInput = $elem.find('.image-add');
+    const $progress = $elem.find('.image-block__progress');
+    const $btnCancel = $elem.find('.image-block__cancel');
 
-    // custom functions
-    self.resetInput = () => {
-      $addInput.value = '';
+    // attributes
+    self.progress = 0;
+    self.xhr = null;
+
+    // methods
+    self.updateProgress = e => {
+      if(e.lengthComputable){
+        const max = e.total;
+        const current = e.loaded;
+        const percentage = (current * 100) / max;
+
+        self.progress = percentage;
+
+        $progress.text(percentage + '%');
+      }
     }
 
-    self.uploadFile = file => {
+    self.cancelUpload = () => {
+      self.xhr.abort();
+    }
+
+    self.upload = file => {
       const formData = new FormData();
       const cdnUrl = 'https://devcdn.istiqlalhouston.org/';
 
       formData.append('image', file);
 
-      $.ajax({
+      self.xhr = $.ajax({
         url: cdnUrl,
         type: 'POST',
         data: formData,
@@ -24,16 +41,51 @@
         processData: false,
         contentType: false,
         cache: false,
-        success: function(res) {
-          console.log(res);
+        xhr: function() {
+          const myXhr = $.ajaxSettings.xhr();
+          if (myXhr.upload) {
+            myXhr.upload.addEventListener('progress', self.updateProgress, false);
+          }
+          return myXhr;
+        },
+        success: function(data) {
+          $progress.text(JSON.stringify(data));
         },
         error: function(err) {
-          console.warn(err);
-        },
-        complete: function() {
-          console.log('Complete');
+          $progress.text(JSON.stringify(err));
         }
       });
+    }
+
+    // handlers
+    $btnCancel.click(self.cancelUpload);
+
+    // constructor
+    self.upload(file);
+  }
+
+  $.fn.imageManagement = function() {
+    const self = this;
+    const $elem = $(this);
+    const $addInput = $elem.find('.image-add');
+    const $imageList = $elem.find('.image-list');
+
+    // custom functions
+    self.resetInput = () => {
+      $addInput.value = '';
+    }
+
+    self.appendFile = file => {
+      // const newImageBlock = document.createElement('div');
+      const $newImageBlock = $(`
+        <div class='image-block'>
+          <div class='image-block__progress'></div>
+          <div class='btn btn-danger image-block__cancel'>Cancel</div>
+        </div>
+      `);
+
+      $imageList.append($newImageBlock);
+      $newImageBlock.imageBlock(file);
     }
 
     self.readFile = file => {
@@ -51,7 +103,7 @@
     self.uploads = (files = []) => {
       $.each(files, async (i, file) => {
         const imgData = await self.readFile(file);
-        self.uploadFile(file);
+        self.appendFile(file);
       })
     }
 
