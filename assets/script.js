@@ -1,4 +1,62 @@
 (function($) {
+  const readFile = file => {
+    return new Promise(resolve => {
+      const reader = new FileReader();
+
+      reader.addEventListener('load', () => {
+        resolve(reader.result);
+      }, false);
+
+      reader.readAsDataURL(file);
+    });
+  }
+
+  const dataURLtoFile = (dataurl, filename) => {
+    var arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
+        bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+    while(n--){
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, {type:mime});
+  }
+
+  $.fn.imageCropping = async function(file, appendFile) {
+    const self = this;
+    const $elem = $(this);
+    const $img = $('<img class="img-crop"/>');
+    const $btnCancel = $('<button class="btn btn-danger">Cancel</button>');
+    const $btnUpload = $('<button class="btn btn-primary">Upload</button>');
+    const $btnWrapper = $('<div></div>').append($btnCancel).append($btnUpload);
+
+    // attributes
+    self.file = file;
+    self.fileData = await readFile(file);
+
+    // construct
+    $img.attr('src', self.fileData);
+    $elem.append($img);
+    $elem.append($btnWrapper);
+    self.$imgCropper = $img.cropper();
+
+    // methods
+    self.close = () => {
+      $elem.remove();
+    }
+
+    self.upload = () => {
+      const result = self.$imgCropper.cropper('getCroppedCanvas').toDataURL(file.type);
+      const imageFile = dataURLtoFile(result, file.name);
+      appendFile(imageFile);
+      self.close();
+    }
+
+    // handlers
+    $btnCancel.click(self.close);
+    $btnUpload.click(self.upload);
+
+    return self;
+  }
+
   $.fn.imageBlock = function(file) {
     const self = this;
     const $elem = $(this);
@@ -35,20 +93,8 @@
       }
     }
 
-    self.readFile = file => {
-      return new Promise(resolve => {
-        const reader = new FileReader();
-
-        reader.addEventListener('load', () => {
-          resolve(reader.result);
-        }, false);
-  
-        reader.readAsDataURL(file);
-      });
-    }
-
     self.prepareFileData = async(file) => {
-      const imgData = await self.readFile(file);
+      const imgData = await readFile(file);
       self.fileData = imgData;
 
       return imgData;
@@ -130,8 +176,6 @@
         $img.attr('src', data);
       });
     self.upload(file);
-
-    console.log(self);
   }
 
   $.fn.imageManagement = function() {
@@ -139,10 +183,14 @@
     const $elem = $(this);
     const $addInput = $elem.find('.image-add');
     const $imageList = $elem.find('.image-list');
+    const $imageCrop = $('#image-cropping');
+
+    // attributes
+    self.activeCrop = null;
 
     // custom functions
     self.resetInput = () => {
-      $addInput.value = '';
+      $addInput.val('');
     }
 
     self.appendFile = file => {
@@ -153,7 +201,19 @@
       $newImageBlock.imageBlock(file);
     }
 
+    self.cropImage = async(file) => {
+      const $imageCropInside = $('<div></div>');
+      $imageCrop.html('');
+      $imageCrop.append($imageCropInside);
+      const ic = await $imageCropInside.imageCropping(file, self.appendFile);
+      console.log(ic);
+    }
+
     self.uploads = (files = []) => {
+      if (files.length === 1) {
+        self.cropImage(files[0]);
+        return;
+      }
       $.each(files, (i, file) => {
         self.appendFile(file);
       })
@@ -165,7 +225,6 @@
 
       if (target.files && target.files[0]) {
         self.uploads(target.files);
-        return;
       }
       self.resetInput();
     });
