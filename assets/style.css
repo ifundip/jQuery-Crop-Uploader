@@ -10,3 +10,7 @@ img {
 #n-image-management .image-list td {
   height: 150px;
 }
+
+#n-image-management .img-crop {
+  max-height: 500px;
+}
