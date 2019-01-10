@@ -2,14 +2,25 @@
   $.fn.imageBlock = function(file) {
     const self = this;
     const $elem = $(this);
-    const $progress = $('<div class="image-block__progress"></div>');
+    const $img = $('<img/>');
     const $btnCancel = $('<div class="btn btn-danger image-block__cancel">Cancel</div>');
+    const $btnDelete = $('<div class="btn btn-danger image-block__delete">Delete</div>');
+    const $progress = $(`<div class="image-block__progress progress"></div>`);
+    const $progressBar = $('<div class="progress-bar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>');
 
     // attributes
     self.progress = 0;
     self.xhr = null;
+    self.fileData = null;
 
     // methods
+    self.setProgress = percentage => {
+      $progressBar
+      .css({
+        width: `${percentage}%`,
+      });
+    }
+
     self.updateProgress = e => {
       if(e.lengthComputable){
         const max = e.total;
@@ -17,13 +28,40 @@
         const percentage = (current * 100) / max;
 
         self.progress = percentage;
+        self.setProgress(percentage);
 
-        $progress.text(percentage + '%');
+        if (percentage == 100)
+          $btnCancel.hide();
       }
+    }
+
+    self.readFile = file => {
+      return new Promise(resolve => {
+        const reader = new FileReader();
+
+        reader.addEventListener('load', () => {
+          resolve(reader.result);
+        }, false);
+  
+        reader.readAsDataURL(file);
+      });
+    }
+
+    self.prepareFileData = async(file) => {
+      const imgData = await self.readFile(file);
+      self.fileData = imgData;
+
+      return imgData;
+    }
+
+    self.delete = () => {
+      self.cancelUpload();
+      $(this).remove();
     }
 
     self.cancelUpload = () => {
       self.xhr.abort();
+      self.setProgress(0);
     }
 
     self.upload = file => {
@@ -49,22 +87,51 @@
           return myXhr;
         },
         success: function(data) {
-          $progress.text(JSON.stringify(data));
+          // $progress.text(JSON.stringify(data));
         },
         error: function(err) {
-          $progress.text(JSON.stringify(err));
+          console.warn(err);
         }
       });
     }
 
+    self.prepareElement = () => {
+      const $row = $('<table style="width: 100%"><tbody><tr></tr></tbody></table>');
+      const $imgElem = $('<td width="150" style="text-align: center;"></td>');
+      const $detailElem = $('<td></td>');
+      const $progressElem = $('<div></div>');
+      const $btnsElem = $('<div></div>');
+
+      $imgElem.append($img);
+      $progress.append($progressBar);
+      $progressElem.append($progress);
+
+      $btnsElem.append($btnCancel);
+      $btnsElem.append($btnDelete);
+
+      $detailElem.append($progressElem);
+      $detailElem.append($btnsElem);
+
+      $row.find('tr').append($imgElem);
+      $row.find('tr').append($detailElem);
+
+      $elem.append($row);
+    }
+
     // handlers
     $btnCancel.click(self.cancelUpload);
+    $btnDelete.click(self.delete);
 
     // constructor
-    $elem.append($progress);
-    $elem.append($btnCancel);
     self.file = file;
+    self.prepareElement();
+    self.prepareFileData(file)
+      .then(data => {
+        $img.attr('src', data);
+      });
     self.upload(file);
+
+    console.log(self);
   }
 
   $.fn.imageManagement = function() {
@@ -86,21 +153,8 @@
       $newImageBlock.imageBlock(file);
     }
 
-    self.readFile = file => {
-      return new Promise(resolve => {
-        const reader = new FileReader();
-
-        reader.addEventListener('load', () => {
-          resolve(reader.result);
-        }, false);
-  
-        reader.readAsDataURL(file);
-      });
-    }
-
     self.uploads = (files = []) => {
-      $.each(files, async (i, file) => {
-        const imgData = await self.readFile(file);
+      $.each(files, (i, file) => {
         self.appendFile(file);
       })
     }
