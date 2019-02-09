@@ -71,8 +71,8 @@ const jbImageUploader = (callback) => {
               <nav>
                 <div class="nav nav-tabs" id="nav-tab" role="tablist">
                   <a class="nav-item nav-link active" id="nav-modal-jbiu-input" data-toggle="tab" href="#nav-modal-jbiu-input-tab" role="tab" aria-controls="nav-modal-jbiu-input-tab" aria-selected="true">Upload</a>
-                  <a class="nav-item nav-link" id="nav-modal-jbiu-url" data-toggle="tab" href="#nav-modal-jbiu-url-tab" role="tab" aria-controls="nav-profile" aria-selected="false">URL</a>
-                  <a class="nav-item nav-link" id="nav-modal-jbiu-camera" data-toggle="tab" href="#nav-modal-jbiu-camera-tab" role="tab" aria-controls="nav-modal-jbiu-camera-tab" aria-selected="false">Camera</a>
+                  <!--<a class="nav-item nav-link" id="nav-modal-jbiu-url" data-toggle="tab" href="#nav-modal-jbiu-url-tab" role="tab" aria-controls="nav-profile" aria-selected="false">URL</a>
+                  <a class="nav-item nav-link" id="nav-modal-jbiu-camera" data-toggle="tab" href="#nav-modal-jbiu-camera-tab" role="tab" aria-controls="nav-modal-jbiu-camera-tab" aria-selected="false">Camera</a>-->
                 </div>
               </nav>
               <div class="tab-content" id="nav-tabContent">
