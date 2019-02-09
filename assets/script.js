@@ -1,3 +1,7 @@
+const consoleWarn = (str = '') => {
+  return console.log(`%c${str}`, 'background: #ffeb3b; color: #333; padding: 5px 10px; border-radius: 3px;');
+};
+
 const readFile = file => {
   return new Promise(resolve => {
     const reader = new FileReader();
@@ -23,10 +27,6 @@ const jbImageUploader = (callback) => {
   this.callback = callback;
   this.modalId = 'jb-image-uploader-modal';
 
-  this.consoleWarn = (str = '') => {
-    return console.log(`%c ${str}`, 'background: #ffeb3b; color: #333; padding: 5px 10px; border-radius: 3px;');
-  };
-
   this.getModal = () => {
     return $(`#${this.modalId}`);
   };
@@ -37,12 +37,12 @@ const jbImageUploader = (callback) => {
 
   this.closeModal = () => {
     this.getModal().modal('hide');
-    this.consoleWarn('Modal closed');
+    consoleWarn('Modal closed');
   };
 
   this.removeModal = () => {
     this.getModal().remove();
-    this.consoleWarn('Modal removed');
+    consoleWarn('Modal removed');
   };
 
   this.modalExist = () => {
@@ -86,7 +86,20 @@ const jbImageUploader = (callback) => {
                   </div>
                 </div>
                 <div class="p-3 tab-pane fade" id="nav-modal-jbiu-url-tab" role="tabpanel" aria-labelledby="nav-modal-jbiu-url">
-                  Url
+                  <div id='image-fetch-url-wrapper'>
+                    <form id='image-fetch-url-form'>
+                      <div class="form-row">
+                        <div class="col-9">
+                          <input value='https://s3.bukalapak.com/uploads/flash_banner/89363/homepage_banner/s-834-352/Banner_Desktop_Login-serburumah.jpg.webp' type="text" class="form-control" placeholder="Image URL">
+                        </div>
+                        <div class="col">
+                          <button id='url-fetch-button' type='submit' class='form-control btn btn-primary'>Fetch</button>
+                        </div>
+                      </div>
+                    </form>
+                    <img src='' id='image-views'/>
+                  </div>
+                  <div id='image-cropping'></div>
                 </div>
                 <div class="p-3 tab-pane fade" id="nav-modal-jbiu-camera-tab" role="tabpanel" aria-labelledby="nav-modal-jbiu-camera">
                   Camera
@@ -102,6 +115,9 @@ const jbImageUploader = (callback) => {
     $modal.find('#image-upload-wrapper').imageManagement({
       onFinish: this.onUploadFinish
     });
+    $modal.find('#image-fetch-url-wrapper').urlFetchImage({
+      onFinish: this.onUploadFinish
+    })
     $('body').append($modal);
 
     // add event listener
@@ -119,6 +135,30 @@ function jb_upload_image() {
   });
   j.createModal();
   j.showModal();
+}
+
+const uploadFileToServer = (file) => {
+  const formData = new FormData();
+  const cdnUrl = 'http://localhost:3000/';
+
+  formData.append('image', file);
+
+  return $.ajax({
+    url: cdnUrl,
+    type: 'POST',
+    data: formData,
+    dataType: 'json',
+    enctype: 'multipart/form-data',
+    processData: false,
+    contentType: false,
+    cache: false
+  });
+}
+
+const fetchFileData = async(file) => {
+  const imgData = await readFile(file);
+
+  return imgData;
 }
 
 (function($) {
@@ -164,6 +204,90 @@ function jb_upload_image() {
   
     return self;
   }
+
+  $.fn.urlFetchImage = function(options) {
+    const $elem = $(this);
+    const $fetchForm = $elem.find('#image-fetch-url-form');
+    const $urlInput = $fetchForm.find('input');
+    const $img = $elem.find('#image-views');
+
+    this.isImageURLValid = (url, timeout = 5000) => {
+      var timedOut = false, timer;
+      var img = new Image();
+
+      return new Promise((resolve, reject) => {
+        img.onerror = img.onabort = function() {
+          if (!timedOut) {
+            clearTimeout(timer);
+            resolve(false);
+          }
+        };
+        img.onload = function() {
+          if (!timedOut) {
+            clearTimeout(timer);
+            resolve(true);
+          }
+        };
+        img.src = url;
+        timer = setTimeout(function() {
+          timedOut = true;
+          // reset .src to invalid URL so it stops previous
+          // loading, but doesn't trigger new load
+          img.src = "//!!!!/test.jpg";
+          reject(false);
+        }, timeout); 
+      })
+    }
+
+    this.setFormLoading = () => {
+      $fetchForm.find('button[type=submit]').prop('disabled', true).text('Loading...');
+    }
+
+    this.setFormReady = () => {
+      $fetchForm.find('button[type=submit]').prop('disabled', false).text('Fetch');
+    }
+
+    this.getDataFromUrl = (img) => {
+      // Create an empty canvas element
+      var canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+  
+      // Copy the image contents to the canvas
+      var ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+
+      return ctx.getImageData(0, 0, img.width, img.height);
+    }
+
+    // form handler
+    $fetchForm.on('submit', async(e) => {
+      e.preventDefault();
+
+      this.setFormLoading();
+
+      const $url = $urlInput.val();
+      const isImageValid = await this.isImageURLValid($url);
+
+      if (!isImageValid) {
+        alert('Not a valid URL');
+        this.setFormReady();
+      }
+
+      consoleWarn($url);
+      const url = `${$url}?${new Date().getTime()}`;
+      $img.attr('src', url);
+      const img = document.querySelector('#image-views');
+      img.addEventListener('load', (ev) => {
+        console.warn(this.getDataFromUrl(ev.currentTarget));
+      });
+
+
+      this.setFormReady();
+    });
+
+    return this;
+  }
   
   $.fn.imageManagement = function(options) {
     const self = this;
@@ -180,32 +304,9 @@ function jb_upload_image() {
       $addInput.val('');
     }
   
-    self.fetchFileData = async(file) => {
-      const imgData = await readFile(file);
-      self.fileData = imgData;
-  
-      return imgData;
-    }
-  
     self.uploadFile = async(file) => {
-      const fileData = await self.fetchFileData(file);
-      const formData = new FormData();
-      // const cdnUrl = 'https://devcdn.istiqlalhouston.org/';
-      const cdnUrl = 'http://localhost:3000/';
-
-      formData.append('image', file);
-
-      const imageAjax = $.ajax({
-        url: cdnUrl,
-        type: 'POST',
-        data: formData,
-        dataType: 'json',
-        enctype: 'multipart/form-data',
-        processData: false,
-        contentType: false,
-        cache: false
-      });
-
+      const fileData = await fetchFileData(file);
+      const imageAjax = uploadFileToServer(file);
       options.onFinish(fileData, imageAjax);
     }
   
