@@ -112,9 +112,11 @@
 
     self.upload = file => {
       const formData = new FormData();
-      const cdnUrl = 'https://devcdn.istiqlalhouston.org/';
+      // const cdnUrl = 'https://devcdn.istiqlalhouston.org/';
+      const cdnUrl = 'http://localhost:3000/';
 
       formData.append('image', file);
+      formData.append('lg', [100, 100]);
 
       self.xhr = $.ajax({
         url: cdnUrl,
