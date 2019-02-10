@@ -71,8 +71,8 @@ const jbImageUploader = (callback) => {
               <nav>
                 <div class="nav nav-tabs" id="nav-tab" role="tablist">
                   <a class="nav-item nav-link active" id="nav-modal-jbiu-input" data-toggle="tab" href="#nav-modal-jbiu-input-tab" role="tab" aria-controls="nav-modal-jbiu-input-tab" aria-selected="true">Upload</a>
-                  <!--<a class="nav-item nav-link" id="nav-modal-jbiu-url" data-toggle="tab" href="#nav-modal-jbiu-url-tab" role="tab" aria-controls="nav-profile" aria-selected="false">URL</a>
-                  <a class="nav-item nav-link" id="nav-modal-jbiu-camera" data-toggle="tab" href="#nav-modal-jbiu-camera-tab" role="tab" aria-controls="nav-modal-jbiu-camera-tab" aria-selected="false">Camera</a>-->
+                  <!--<a class="nav-item nav-link" id="nav-modal-jbiu-url" data-toggle="tab" href="#nav-modal-jbiu-url-tab" role="tab" aria-controls="nav-profile" aria-selected="false">URL</a>-->
+                  <a class="nav-item nav-link" id="nav-modal-jbiu-camera" data-toggle="tab" href="#nav-modal-jbiu-camera-tab" role="tab" aria-controls="nav-modal-jbiu-camera-tab" aria-selected="false">Camera</a>
                 </div>
               </nav>
               <div class="tab-content" id="nav-tabContent">
@@ -102,7 +102,16 @@ const jbImageUploader = (callback) => {
                   <div id='image-cropping'></div>
                 </div>
                 <div class="p-3 tab-pane fade" id="nav-modal-jbiu-camera-tab" role="tabpanel" aria-labelledby="nav-modal-jbiu-camera">
-                  Camera
+                  <div id='image-capture-camera' class='text-center'>
+                    <div style='display: none;' class='image-cropping'></div>
+                    <canvas id="jbui-camera-canvas" style='width: 100%; height: 500px; display: none;'></canvas>
+                    <div class='btns' style='display: none;'>
+                      <button type='button' class='btn btn-danger float-left' id='jbui-camera-cancel-btn'>Cancel</button>
+                      <button type='button' class='btn btn-primary float-right' id='jbui-camera-upload-btn'>Upload</button>
+                    </div>
+                    <video id="jbui-camera-video" controls autoplay style='width: 100%; height: 500px;'></video>
+                    <button type='button' id="jbui-camera-capture" class='btn btn-primary'>Capture</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -117,11 +126,28 @@ const jbImageUploader = (callback) => {
     });
     $modal.find('#image-fetch-url-wrapper').urlFetchImage({
       onFinish: this.onUploadFinish
-    })
+    });
+    $modal.find('#nav-modal-jbiu-camera')
+      .on('show.bs.tab', () => {
+        $('#image-capture-camera').cameraCapture({
+          start: true,
+          onFinish: this.onUploadFinish
+        });
+        consoleWarn('Camera');
+      })
+      .on('hide.bs.tab', () => {
+        $('#image-capture-camera').cameraCapture({
+          stop: true,
+        });
+        consoleWarn('Camera hide');
+      });
     $('body').append($modal);
 
     // add event listener
     this.getModal().on('hidden.bs.modal', () => {
+      $('#image-capture-camera').cameraCapture({
+        stop: true,
+      });
       this.removeModal();
     });
   };
@@ -162,6 +188,118 @@ const fetchFileData = async(file) => {
 }
 
 (function($) {
+
+  $.fn.cameraCapture = function(options={}) {
+    const $elem = $(this);
+    const $imageCrop = $elem.find('.image-cropping');
+    const $btns = $elem.find('.btns');
+    const $btnCapture = $elem.find('#jbui-camera-capture');
+    const $btnCancel = $elem.find('#jbui-camera-cancel-btn');
+    const $btnUpload = $elem.find('#jbui-camera-upload-btn');
+    const $canvas = $elem.find('canvas');
+    const $video = $elem.find('video');
+    const $singleCanvas = $canvas[0];
+    const $singleVideo = $video[0];
+
+    const context = $canvas[0].getContext('2d');
+    const constraints = {
+      video: true,
+    };
+
+    this.toggleCanvas = () => {
+      $btnCapture.toggle();
+      $canvas.toggle();
+      $video.toggle();
+      $btns.toggle();
+
+      return this;
+    };
+
+    this.showCropping = () => {
+      $btns.hide();
+      $canvas.hide();
+      $video.hide();
+      $imageCrop.show();
+    };
+
+    this.hideCropping = () => {
+      $btns.show();
+      $canvas.show();
+      $imageCrop.hide();
+    }
+
+    this.stopTracking = () => {
+      if ($singleVideo.srcObject) {
+        $singleVideo.srcObject.getVideoTracks().forEach(track => track.stop());
+      }
+
+      return this;
+    };
+
+    this.startTracking = () => {
+      navigator.mediaDevices.getUserMedia(constraints)
+        .then((stream) => {
+          $singleVideo.srcObject = stream;
+        });
+
+      return this;
+    }
+
+    this.uploadFile = async(file) => {
+      const fileData = await fetchFileData(file);
+      const imageAjax = uploadFileToServer(file);
+      options.onFinish(fileData, imageAjax);
+    }
+  
+    this.cropImage = async(file) => {
+      const $imageCropInside = $('<div></div>');
+  
+      $imageCrop.html('');
+      $imageCrop.append($imageCropInside);
+
+      this.showCropping();
+      this.stopTracking();
+      await $imageCropInside.imageCropping(file, {
+        onFinish: this.uploadFile,
+        onCancel: this.hideCropping
+      });
+    }
+
+    if (options.start) {
+      this.startTracking();
+    }
+    if (options.stop) {
+      this.stopTracking();
+    }
+
+    // btn event handler
+    $btnCapture.click(() => {
+      // Reset canvas resolution with camera resolution
+      const canvasWidth = $singleVideo.srcObject.getVideoTracks()[0].getSettings().width;
+      const canvasHeight = $singleVideo.srcObject.getVideoTracks()[0].getSettings().height;
+      
+      $singleCanvas.width = canvasWidth;
+      $singleCanvas.height = canvasHeight;
+
+      context.drawImage($singleVideo, 0, 0, canvasWidth, canvasHeight);
+      this.toggleCanvas();
+      this.stopTracking();
+    });
+
+    $btnCancel.click(() => {
+      this.toggleCanvas();
+      this.startTracking();
+    });
+
+    $btnUpload.click(() => {
+      const dataURL = $singleCanvas.toDataURL();
+      const imageFile = dataURLtoFile(dataURL, 'camera_capture.png');
+
+      this.cropImage(imageFile);
+    });
+
+    return this;
+  }
 
   $.fn.imageCropping = async function(file, options = {}) {
     const self = this;
